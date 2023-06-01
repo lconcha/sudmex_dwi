@@ -1,50 +1,52 @@
 #!/bin/bash
 source `which my_do_cmd`
 
-csv=data_folders.txt
+csv=data_folders.csv
+other_locations=other_locations.txt
 
 
 
 
 while read line
 do
- subjID=$(echo $line | awk  '{print $1}')
- sessID=$(echo $line | awk  '{print $2}')
- d=$(echo $line | awk  '{print $3}')
- RawData=$(echo $line | awk '{print $5}')
+ subjID=$(echo $line | awk -F, '{print $1}')
+ sessID=$(echo $line | awk -F, '{print $2}')
+ d=$(echo $line | awk -F, '{print $3}')
  if [[ "$subjID" == "SubjID" ]]; then echo "first line";continue;fi
- echo $RawData $d
+ echo $subjID $d
  str=$(echo $d | grep EXVIV)
  vivo="invivo"
  if [ -z "$str" ]; then isexvivo=0; else isexvivo=1;fi
  if [ $isexvivo -eq 1 ]; then echolor green "EXVIVO";vivo="exvivo";fi
  
 if [ ! -d $d ]
-then
-   echolor red "[ERROR] Cannot find $d"
-   echo $d >> folders_not_found.txt
-fi
+  then
+    echolor red "[ERROR] Cannot find $d in $other_locations"
+    echo $d >> folders_not_found.txt
+    continue
+  fi
 
- brkraw info $d | grep DTI | while read s
- do
-   seq=${s:1:3}
-   echo $seq
-   outfolder=/misc/mansfield/lconcha/exp/sudmex_dwi/${vivo}/raw
+  outfolder=/misc/mansfield/lconcha/exp/sudmex_dwi/${vivo}/raw
+  fcheck=${outfolder}/${subjID}_${sessID}_dwi.nii.gz
+  if [ -f $fcheck ]
+  then
+    echolor yellow "[INFO] Already converted: ${outfolder}/${subjID}_${sessID}_dwi.nii.gz"
+    continue
+  fi
 
-   if [ -f ${outfolder}/${subjID}_${sessID}_dwi.nii.gz ]
-   then
-     echolor yellow "[INFO] Already converted: ${outfolder}/${subjID}_${sessID}_dwi.nii.gz"
-     continue
-   fi
-
-   tmpDir=$(mktemp -d)
-   my_do_cmd brkraw tonii -s $seq -o ${tmpDir}/dwi $d
-   my_do_cmd mrconvert \
-     -bvalue_scaling false \
-     -export_grad_fsl ${outfolder}/${subjID}_${sessID}_dwi.{bvec,bval} \
-     -fslgrad ${tmpDir}/dwi*.{bvec,bval,nii.gz} \
+  brkraw info $d | grep DTI | while read s
+  do
+    seq=${s:1:3}
+    echo $seq
+  
+    tmpDir=$(mktemp -d)
+    my_do_cmd brkraw tonii -s $seq -o ${tmpDir}/dwi $d
+    my_do_cmd mrconvert \
+      -bvalue_scaling false \
+      -export_grad_fsl ${outfolder}/${subjID}_${sessID}_dwi.{bvec,bval} \
+      -fslgrad ${tmpDir}/dwi*.{bvec,bval,nii.gz} \
           ${outfolder}/${subjID}_${sessID}_dwi.nii.gz
-   rm -fRv $tmpDir
+    rm -fRv $tmpDir
   done
 done < $csv
 
