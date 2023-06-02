@@ -20,7 +20,7 @@ ad=${outbase}_ad.mif
 v1=${outbase}_v1.mif
 b0=${outbase}_b0.mif
 
-
+## DTI
 if [ ! -f $fa ]
 then
     dwi2tensor -b0 $b0 $dwi $dt
@@ -30,7 +30,7 @@ else
 fi
 
 
-
+## MASK from ADC map
 mask=${outbase}_mask.nii.gz
 if [ ! -f $mask ]
 then
@@ -41,3 +41,16 @@ else
   echolor cyan "[INFO] Not repeating mask creation, file exists: $mask"
 fi
 
+
+## DKI
+# anaconda_on
+# conda activate /home/inb/lconcha/fmrilab_software/inb_anaconda3/envs/dipy
+fcheck=${outbase}_dki/mk.nii.gz
+if [ ! -f $fcheck ]
+then
+  mrconvert $dwi -export_grad_fsl /tmp/dwi_$$.{bvec,bval,nii}
+  dipy_fit_dki --b0_threshold 25 --out_dir ${outbase}_dki /tmp/dwi_$$.{nii,bval,bvec} $mask
+  rm /tmp/dwi_$$.{bvec,bval,nii}
+else
+  echolor cyan "[INFO] Kurtosis already calculated, not overwriting. Found: $fcheck"
+fi
