@@ -4,39 +4,34 @@
 
 dwi=$1
 
+
+
+SUDMEX_DIR=/misc/mansfield/lconcha/exp/sudmex_dwi
+
+
+#denoised=${SUDMEX_DIR}/invivo/preproc/$(basename ${dwi%.nii.gz})_d.mif
+#denoised_eddy=${SUDMEX_DIR}/invivo/preproc/$(basename ${dwi%.nii.gz})_de.mif
+outbase=${SUDMEX_DIR}/invivo/preproc/$(basename ${dwi%.nii.gz})
+
+
+
 tmpDir=$(mktemp -d)
 
 
-denoised=preproc/$(basename ${dwi%.mif})_d.mif
-denoised_eddy=preproc/$(basename ${dwi%.mif})_de.mif
-reference=preproc/$(basename ${dwi%.mif})_ref.mif
-
-if [ ! -f $denoised ]
-then
-  dwiextract -no_bzero $dwi $tmpDir/dwis.mif
-  dwiextract -shell 2000 $tmpDir/dwis.mif - | mrmath -axis 3 - mean $reference
-  dwidenoise -nthreads 6 $tmpDir/dwis.mif $denoised
-fi
+# Flip the stupid gradients
+flip_gradients.sh ${dwi%.nii.gz}.bvec ${tmpDir}/bvecs -flip_x -flip_z
+mrconvert \
+  -fslgrad ${tmpDir}/bvecs ${dwi%.nii.gz}.bval \
+  -export_grad_fsl ${tmpDir}/dwi.{bvec,bval} \
+  $dwi \
+  ${tmpDir}/dwi.nii.gz
 
 
-if [ ! -f $denoised_eddy ]
-then
-  inb_eddy_correct_sge.sh \
-  $denoised \
-  $denoised_eddy \
-  $reference \
-  fsl
-else
-  echolor green "[INFO] File exists: $denoised_eddy"
-fi
+
+inb_dwi_bruker_preproc.sh \
+    -i ${tmpDir}/dwi.nii.gz \
+    -o $outbase
+
+
 
 rm -fR $tmpDir
-
-fa=proc/$(basename ${dwi%.mif})_fa.mif
-adc=proc/$(basename ${dwi%.mif})_adc.mif
-v1=proc/$(basename ${dwi%.mif})_v1.mif
-mask=${denoised_eddy%.mif}_mask.mif
-dwi2tensor $denoised_eddy - | tensor2metric -fa $fa -adc $adc -vector $v1 -
-
-
-
